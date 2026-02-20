@@ -1,26 +1,188 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer theme {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bronze-900: #1C1410;
+    --bronze-800: #3A241A;
+    --bronze-700: #6A3E2A;
+    --gold: #C6A15B;
+    --gold-dark: #B88A44;
+    --champagne: #E8D8B5;
+    --cream: #F3EDE5;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: linear-gradient(135deg, #1C1410 0%, #3A241A 50%, #6A3E2A 100%);
+    background-attachment: fixed;
+    color: var(--cream);
+    font-family: 'Inter', -apple-system, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--bronze-900);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--gold-dark);
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--gold);
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.03;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(198, 161, 91, 0.5) 35px, rgba(198, 161, 91, 0.5) 70px),
+      repeating-linear-gradient(-45deg, transparent, transparent 35px, rgba(198, 161, 91, 0.5) 35px, rgba(198, 161, 91, 0.5) 70px);
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(58, 36, 26, 0.5);
+    border: 1px solid rgba(198, 161, 91, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  .glass-light {
+    background: rgba(198, 161, 91, 0.05);
+    border: 1px solid rgba(198, 161, 91, 0.15);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #C6A15B 0%, #B88A44 100%);
+    color: #1C1410;
+    padding: 1.25rem 2.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-size: 1.125rem;
+    box-shadow: 0 4px 20px rgba(198, 161, 91, 0.4);
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    display: inline-block;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 30px rgba(198, 161, 91, 0.6);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    border: 2px solid #C6A15B;
+    color: #C6A15B;
+    padding: 1.25rem 2.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-size: 1.125rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    display: inline-block;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .btn-secondary:hover {
+    background: #C6A15B;
+    color: #1C1410;
+    transform: translateY(-2px);
+  }
+}
+
+@layer utilities {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .fade-in {
+    animation: fadeIn 0.6s ease-out;
+  }
+
+  @keyframes pulse-gold {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(198, 161, 91, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 20px rgba(198, 161, 91, 0);
+    }
+  }
+
+  .pulse-gold {
+    animation: pulse-gold 2s infinite;
+  }
+
+  .text-gold {
+    color: var(--gold);
+  }
+
+  .text-gold-dark {
+    color: var(--gold-dark);
+  }
+
+  .text-champagne {
+    color: var(--champagne);
+  }
+
+  .text-cream {
+    color: var(--cream);
+  }
+
+  .bg-bgDarkest {
+    background-color: var(--bronze-900);
+  }
+
+  .border-gold {
+    border-color: var(--gold);
+  }
+
+  .font-serif {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  .font-sans {
+    font-family: 'Inter', -apple-system, sans-serif;
+  }
 }
