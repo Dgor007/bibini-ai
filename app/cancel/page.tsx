@@ -56,10 +56,10 @@ export default function CancelPage() {
             Need help? Contact us at
           </p>
           <a
-            href="mailto:support@bibini.ai"
+            href="mailto:support@bibini.org"
             className="text-gold hover:text-gold-dark font-semibold"
           >
-            support@bibini.ai
+            support@bibini.org
           </a>
         </div>
       </div>

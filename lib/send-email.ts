@@ -32,7 +32,7 @@ export async function sendDeliveryEmail({
             <div style="background: rgba(198,161,91,0.1); border: 1px solid rgba(198,161,91,0.3); border-radius: 12px; padding: 30px; margin-bottom: 20px;">
               <h2 style="color: #C6A15B; margin-top: 0;">Hi ${userName},</h2>
               <p>Your <strong>${service}</strong> has been generated successfully!</p>
-              <p>You can download it anytime from your <a href="https://bibini.ai/dashboard" style="color: #C6A15B;">BIBINI Dashboard</a>.</p>
+              <p>You can download it anytime from your <a href="https://bibini.org/dashboard" style="color: #C6A15B;">BIBINI Dashboard</a>.</p>
             </div>
 
             <div style="background: rgba(255,255,255,0.05); border-radius: 8px; padding: 20px; margin-bottom: 20px;">
@@ -41,7 +41,7 @@ export async function sendDeliveryEmail({
             </div>
 
             <div style="text-align: center; margin-top: 30px;">
-              <a href="https://bibini.ai/dashboard" style="display: inline-block; background: #C6A15B; color: #1C1410; padding: 14px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+              <a href="https://bibini.org/dashboard" style="display: inline-block; background: #C6A15B; color: #1C1410; padding: 14px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
                 Go to Dashboard
               </a>
             </div>

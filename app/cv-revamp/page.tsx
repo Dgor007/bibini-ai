@@ -17,6 +17,7 @@ export default function CVRevampPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [cvText, setCvText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingStep, setGeneratingStep] = useState(0);
   const [revampedCV, setRevampedCV] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +76,11 @@ export default function CVRevampPage() {
     }
 
     setIsGenerating(true);
+    setGeneratingStep(0);
+
+    const stepTimer = setInterval(() => {
+      setGeneratingStep((prev) => Math.min(prev + 1, 3));
+    }, 6000);
 
     try {
       const response = await fetch('/api/ai/revamp-cv', {
@@ -117,9 +123,17 @@ export default function CVRevampPage() {
       console.error('Error revamping CV:', error);
       alert('Failed to revamp CV. Please try again.');
     } finally {
+      clearInterval(stepTimer);
       setIsGenerating(false);
     }
   };
+
+  const generatingSteps = [
+    'Analysing your current CV...',
+    'Restructuring for UK standards...',
+    'Polishing language for authenticity...',
+    'Finalising your revamped CV...',
+  ];
 
   const handleDownloadPDF = () => {
     const name = user?.displayName?.replace(/\s+/g, '_') || 'CV';
@@ -285,9 +299,16 @@ export default function CVRevampPage() {
                 </p>
               )}
               {isGenerating && (
-                <p className="text-cream/60 text-sm mt-4">
-                  This may take 15-20 seconds...
-                </p>
+                <div className="mt-4 space-y-2">
+                  <p className="text-gold text-sm font-medium">{generatingSteps[generatingStep]}</p>
+                  <div className="w-48 mx-auto h-1 bg-cream/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gold rounded-full transition-all duration-1000"
+                      style={{ width: `${((generatingStep + 1) / generatingSteps.length) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-cream/40 text-xs">This may take 20-30 seconds</p>
+                </div>
               )}
             </div>
           </>

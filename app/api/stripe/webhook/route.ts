@@ -47,7 +47,7 @@ async function sendConfirmationEmail(email: string, service: string, amount: num
         </div>
 
         <div style="text-align: center; margin-top: 30px;">
-          <a href="https://bibini.ai/dashboard" style="display: inline-block; background: #C6A15B; color: #1C1410; padding: 14px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+          <a href="https://bibini.org/dashboard" style="display: inline-block; background: #C6A15B; color: #1C1410; padding: 14px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
             Go to Dashboard
           </a>
         </div>

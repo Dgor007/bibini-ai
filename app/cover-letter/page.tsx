@@ -22,6 +22,7 @@ export default function CoverLetterPage() {
     whyCompany: '',
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingStep, setGeneratingStep] = useState(0);
   const [coverLetter, setCoverLetter] = useState('');
 
   useEffect(() => {
@@ -52,6 +53,11 @@ export default function CoverLetterPage() {
     }
 
     setIsGenerating(true);
+    setGeneratingStep(0);
+
+    const stepTimer = setInterval(() => {
+      setGeneratingStep((prev) => Math.min(prev + 1, 3));
+    }, 5000);
 
     try {
       const response = await fetch('/api/ai/generate-cover-letter', {
@@ -94,9 +100,17 @@ export default function CoverLetterPage() {
       console.error('Error generating cover letter:', error);
       alert('Failed to generate cover letter. Please try again.');
     } finally {
+      clearInterval(stepTimer);
       setIsGenerating(false);
     }
   };
+
+  const generatingSteps = [
+    'Understanding the role requirements...',
+    'Crafting your cover letter...',
+    'Polishing language for authenticity...',
+    'Finalising your letter...',
+  ];
 
   const handleDownloadPDF = () => {
     generatePDF(coverLetter, `Cover_Letter_${formData.company}.pdf`);
@@ -293,9 +307,16 @@ export default function CoverLetterPage() {
                 </p>
               )}
               {isGenerating && (
-                <p className="text-cream/60 text-sm mt-4">
-                  This may take 10-15 seconds...
-                </p>
+                <div className="mt-4 space-y-2">
+                  <p className="text-gold text-sm font-medium">{generatingSteps[generatingStep]}</p>
+                  <div className="w-48 mx-auto h-1 bg-cream/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gold rounded-full transition-all duration-1000"
+                      style={{ width: `${((generatingStep + 1) / generatingSteps.length) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-cream/40 text-xs">This may take 20-30 seconds</p>
+                </div>
               )}
             </div>
           </>

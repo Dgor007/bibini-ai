@@ -17,6 +17,7 @@ export default function VoiceToCVPage() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingStep, setGeneratingStep] = useState(0);
   const [generatedCV, setGeneratedCV] = useState('');
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [selectedJobType, setSelectedJobType] = useState<string>('');
@@ -99,6 +100,11 @@ export default function VoiceToCVPage() {
     }
 
     setIsGenerating(true);
+    setGeneratingStep(0);
+
+    const stepTimer = setInterval(() => {
+      setGeneratingStep((prev) => Math.min(prev + 1, 3));
+    }, 6000);
 
     try {
       // If we have audio but no transcript, use the Web Speech API to transcribe
@@ -110,6 +116,7 @@ export default function VoiceToCVPage() {
         // Fallback: prompt user to also type their story
         alert('Please also type or paste your career story in the text box below. Voice-only transcription coming soon.');
         setIsGenerating(false);
+        clearInterval(stepTimer);
         return;
       }
 
@@ -144,9 +151,17 @@ export default function VoiceToCVPage() {
       console.error('Error generating CV:', error);
       alert('Failed to generate CV. Please try again.');
     } finally {
+      clearInterval(stepTimer);
       setIsGenerating(false);
     }
   };
+
+  const generatingSteps = [
+    'Analysing your career story...',
+    'Crafting your professional CV...',
+    'Polishing language for authenticity...',
+    'Finalising your document...',
+  ];
 
   const handleDownloadPDF = () => {
     const name = user?.displayName?.replace(/\s+/g, '_') || 'CV';
@@ -410,9 +425,16 @@ export default function VoiceToCVPage() {
                 </p>
               )}
               {isGenerating && (
-                <p className="text-cream/60 text-sm mt-4">
-                  This may take 15-20 seconds...
-                </p>
+                <div className="mt-4 space-y-2">
+                  <p className="text-gold text-sm font-medium">{generatingSteps[generatingStep]}</p>
+                  <div className="w-48 mx-auto h-1 bg-cream/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gold rounded-full transition-all duration-1000"
+                      style={{ width: `${((generatingStep + 1) / generatingSteps.length) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-cream/40 text-xs">This may take 20-30 seconds</p>
+                </div>
               )}
             </div>
           </>
