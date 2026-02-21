@@ -45,38 +45,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Save generated CV to Firestore for data collection and future learning
+    // Save generated CV to Firestore (full content stored server-side only)
+    let documentId = '';
     try {
       const cvDoc = await addDoc(collection(db, 'generated_cvs'), {
         userName,
         userEmail,
         country: country || 'Not specified',
         jobType: jobType || 'Not specified',
+        service: 'Voice-to-CV',
         cvContent: cv,
-        transcript: transcript.substring(0, 500), // Store first 500 chars only for privacy
+        transcript: transcript.substring(0, 500),
         createdAt: serverTimestamp(),
         wordCount: cv.split(/\s+/).length,
-        // Future fields for learning system:
-        rating: null, // User can rate CV quality later
-        aiDetectionScore: null, // Store GPTZero score if user tests it
-        conversions: {
-          downloaded: false,
-          applied: false,
-          gotInterview: false,
-        },
+        isPaid: false,
+        paymentStatus: 'pending',
+        stripeSessionId: null,
+        paidAt: null,
       });
-
-      console.log('[Firestore] CV saved successfully with ID:', cvDoc.id);
+      documentId = cvDoc.id;
+      console.log('[Firestore] CV saved with ID:', cvDoc.id);
     } catch (firestoreError) {
-      // Don't fail the request if Firestore save fails
       console.error('[Firestore] Error saving CV:', firestoreError);
     }
 
+    // Return preview only — full content unlocked after payment
     return NextResponse.json({
       success: true,
-      cv,
-      message: 'CV generated successfully from voice recording',
-      antiAIDetection: true, // Flag to indicate this passes AI detection
+      documentId,
+      preview: cv.substring(0, 200),
+      wordCount: cv.split(/\s+/).length,
     });
   } catch (error: any) {
     console.error('Error generating CV from voice:', error);

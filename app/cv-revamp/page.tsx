@@ -3,10 +3,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, addDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { generatePDF, generateWord } from '@/lib/document-generators';
-import { sendDeliveryEmail } from '@/lib/send-email';
+import { PRICES, STRIPE_PRICE_IDS } from '@/lib/stripe';
 import Button from '@/components/Button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -18,7 +17,10 @@ export default function CVRevampPage() {
   const [cvText, setCvText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingStep, setGeneratingStep] = useState(0);
-  const [revampedCV, setRevampedCV] = useState('');
+  const [preview, setPreview] = useState('');
+  const [documentId, setDocumentId] = useState<string | null>(null);
+  const [isPaid, setIsPaid] = useState(false);
+  const [fullContent, setFullContent] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -96,26 +98,10 @@ export default function CVRevampPage() {
       const data = await response.json();
 
       if (data.success) {
-        setRevampedCV(data.revampedCV);
-
-        await addDoc(collection(db, 'generated_cvs'), {
-          userEmail: user.email,
-          userName: user.displayName || 'User',
-          cvContent: data.revampedCV,
-          service: 'CV Revamp',
-          country: 'UK',
-          jobType: 'CV Revamp',
-          wordCount: data.revampedCV.split(/\s+/).length,
-          createdAt: new Date(),
-        });
-
-        // Send delivery email
-        sendDeliveryEmail({
-          to: user.email,
-          userName: user.displayName || 'there',
-          service: 'CV Revamp',
-          content: data.revampedCV,
-        });
+        setDocumentId(data.documentId);
+        setPreview(data.preview);
+        setIsPaid(false);
+        setFullContent('');
       } else {
         alert(data.error || 'Failed to revamp CV. Please try again.');
       }
@@ -135,14 +121,35 @@ export default function CVRevampPage() {
     'Finalising your revamped CV...',
   ];
 
+  const handleUnlockPayment = async () => {
+    if (!documentId) return;
+    try {
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceId: STRIPE_PRICE_IDS.CV_REVAMP,
+          userId: user.uid,
+          service: 'cv-revamp',
+          metadata: { documentId, service: 'cv-revamp' },
+        }),
+      });
+      const data = await response.json();
+      if (data.url) window.location.href = data.url;
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert('Failed to initiate payment. Please try again.');
+    }
+  };
+
   const handleDownloadPDF = () => {
     const name = user?.displayName?.replace(/\s+/g, '_') || 'CV';
-    generatePDF(revampedCV, `${name}_Revamped_CV.pdf`);
+    generatePDF(fullContent, `${name}_Revamped_CV.pdf`);
   };
 
   const handleDownloadWord = async () => {
     const name = user?.displayName?.replace(/\s+/g, '_') || 'CV';
-    await generateWord(revampedCV, `${name}_Revamped_CV.docx`);
+    await generateWord(fullContent, `${name}_Revamped_CV.docx`);
   };
 
   return (
@@ -163,43 +170,75 @@ export default function CVRevampPage() {
             and optimize it for global opportunities.
           </p>
           <div className="inline-block glass-light rounded-full px-6 py-2">
-            <span className="text-gold font-serif text-3xl font-bold">£29</span>
+            <span className="text-gold font-serif text-3xl font-bold">£{PRICES.CV_REVAMP}</span>
           </div>
         </div>
 
         {/* Generated Result */}
-        {revampedCV ? (
+        {(preview || fullContent) ? (
           <section className="glass-light rounded-2xl p-8 mb-8">
             <h2 className="font-serif text-2xl font-bold text-champagne mb-6">
-              Your Revamped CV is Ready!
+              {isPaid ? 'Your Revamped CV is Ready!' : 'Your CV Has Been Revamped'}
             </h2>
-            <div className="bg-white/5 rounded-xl p-6 mb-6 max-h-96 overflow-y-auto">
-              <div className="text-cream/90 whitespace-pre-wrap text-sm leading-relaxed">
-                {revampedCV}
-              </div>
+
+            <div className="relative bg-white/5 rounded-xl p-6 mb-6 overflow-hidden">
+              {isPaid ? (
+                <div className="text-cream/90 whitespace-pre-wrap text-sm leading-relaxed max-h-96 overflow-y-auto">
+                  {fullContent}
+                </div>
+              ) : (
+                <>
+                  <div className="text-cream/90 whitespace-pre-wrap text-sm leading-relaxed">
+                    {preview}...
+                  </div>
+                  <div
+                    className="absolute inset-0 flex items-center justify-center rounded-xl"
+                    style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(28,20,16,0.97) 40%)' }}
+                  >
+                    <div className="text-center p-8 mt-16">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gold/20 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-xl font-serif font-bold text-champagne mb-2">
+                        Unlock Your Revamped CV
+                      </h3>
+                      <p className="text-cream/70 mb-6 max-w-sm">
+                        Your revamped CV is ready. Unlock to view the full document and download in PDF & Word.
+                      </p>
+                      <button
+                        onClick={handleUnlockPayment}
+                        className="px-8 py-4 bg-gold hover:bg-gold-dark text-bgDarkest font-bold rounded-lg transition-all transform hover:scale-105 text-lg"
+                      >
+                        Unlock & Download — £{PRICES.CV_REVAMP}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button
-                onClick={handleDownloadPDF}
-                className="flex-1 px-6 py-3 bg-gold hover:bg-gold-dark text-bgDarkest font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                Download PDF
-              </button>
-              <button
-                onClick={handleDownloadWord}
-                className="flex-1 px-6 py-3 border border-gold/30 hover:border-gold text-gold rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                Download Word
-              </button>
-            </div>
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => { setRevampedCV(''); setCvText(''); setSelectedFile(null); }}
-                className="text-cream/50 hover:text-cream/80 text-sm transition-colors"
-              >
-                Revamp another CV
-              </button>
-            </div>
+
+            {isPaid && (
+              <>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button onClick={handleDownloadPDF} className="flex-1 px-6 py-3 bg-gold hover:bg-gold-dark text-bgDarkest font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                    Download PDF
+                  </button>
+                  <button onClick={handleDownloadWord} className="flex-1 px-6 py-3 border border-gold/30 hover:border-gold text-gold rounded-lg transition-colors flex items-center justify-center gap-2">
+                    Download Word
+                  </button>
+                </div>
+                <div className="mt-6 text-center">
+                  <button
+                    onClick={() => { setPreview(''); setFullContent(''); setDocumentId(null); setIsPaid(false); setCvText(''); setSelectedFile(null); }}
+                    className="text-cream/50 hover:text-cream/80 text-sm transition-colors"
+                  >
+                    Revamp another CV
+                  </button>
+                </div>
+              </>
+            )}
           </section>
         ) : (
           <>

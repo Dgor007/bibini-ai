@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateCoverLetter } from '@/lib/gemini';
 import { humanizeText } from '@/lib/undetectable';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Add authentication in production
-    // For now, allowing unauthenticated requests for testing
-
-    // Get request body
     const body = await request.json();
-    const { role, company, experience, keySkills, whyCompany, userName } = body;
+    const { role, company, experience, keySkills, whyCompany, userName, userEmail } = body;
 
-    // Validate required fields
     if (!role || !company || !experience || !userName) {
       return NextResponse.json(
         { error: 'Missing required fields: role, company, experience, userName' },
@@ -44,15 +41,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Save to Firestore (full content stored server-side only)
+    let documentId = '';
+    try {
+      const doc = await addDoc(collection(db, 'generated_cvs'), {
+        userName,
+        userEmail: userEmail || '',
+        service: 'Cover Letter',
+        country: 'UK',
+        jobType: role,
+        cvContent: coverLetter,
+        createdAt: serverTimestamp(),
+        wordCount: coverLetter.split(/\s+/).length,
+        isPaid: false,
+        paymentStatus: 'pending',
+        stripeSessionId: null,
+        paidAt: null,
+      });
+      documentId = doc.id;
+      console.log('[Firestore] Cover letter saved with ID:', doc.id);
+    } catch (firestoreError) {
+      console.error('[Firestore] Error saving cover letter:', firestoreError);
+    }
+
+    // Return preview only — full content unlocked after payment
     return NextResponse.json({
       success: true,
-      coverLetter,
-      message: 'Cover letter generated successfully',
+      documentId,
+      preview: coverLetter.substring(0, 200),
+      wordCount: coverLetter.split(/\s+/).length,
     });
   } catch (error: any) {
     console.error('Error generating cover letter:', error);
 
-    // Check if it's a Google AI API error
     if (error.message?.includes('API key')) {
       return NextResponse.json(
         {

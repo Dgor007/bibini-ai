@@ -6,9 +6,9 @@ import Link from 'next/link';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import Button from '@/components/Button';
 import Header from '@/components/Header';
 import { generatePDF, generateWord } from '@/lib/document-generators';
+import { PRICES, STRIPE_PRICE_IDS } from '@/lib/stripe';
 
 interface GeneratedDocument {
   id: string;
@@ -20,6 +20,8 @@ interface GeneratedDocument {
   createdAt: any;
   wordCount: number;
   service: string;
+  isPaid: boolean;
+  paymentStatus: string;
 }
 
 export default function DashboardPage() {
@@ -107,35 +109,35 @@ export default function DashboardPage() {
             <ServiceItem
               icon="🎤"
               title="Voice-to-CV"
-              price="£39"
+              price={`£${PRICES.VOICE_TO_CV}`}
               href="/voice-to-cv"
               description="Transform your voice into a world-class CV"
             />
             <ServiceItem
               icon="✨"
               title="CV Revamp"
-              price="£29"
+              price={`£${PRICES.CV_REVAMP}`}
               href="/cv-revamp"
               description="Elevate your existing CV to global standards"
             />
             <ServiceItem
               icon="💬"
               title="AI Interview Practice"
-              price="£29"
+              price={`£${PRICES.INTERVIEW_AI}`}
               href="/interview-ai"
               description="Practice with AI for real interview scenarios"
             />
             <ServiceItem
               icon="📄"
               title="Interview Prep Guide"
-              price="£17.99"
+              price={`£${PRICES.INTERVIEW_PDF}`}
               href="/interview-pdf"
               description="Custom PDF guide tailored to your role"
             />
             <ServiceItem
               icon="✉️"
               title="Cover Letter Generator"
-              price="£19"
+              price={`£${PRICES.COVER_LETTER}`}
               href="/cover-letter"
               description="Personalized cover letter that stands out"
             />
@@ -148,7 +150,7 @@ export default function DashboardPage() {
               <h3 className="font-serif text-xl font-bold text-champagne mb-2">
                 Complete Career Package
               </h3>
-              <p className="text-gold font-serif text-2xl mb-3">£99</p>
+              <p className="text-gold font-serif text-2xl mb-3">£{PRICES.BUNDLE}</p>
               <p className="text-cream/70 text-sm mb-4">
                 All 5 services (Save £34). The ultimate toolkit for your career.
               </p>
@@ -170,7 +172,7 @@ export default function DashboardPage() {
           {documents && documents.length > 0 ? (
             <div className="grid md:grid-cols-2 gap-6">
               {documents.map((doc) => (
-                <DocumentCard key={doc.id} document={doc} />
+                <DocumentCard key={doc.id} document={doc} user={user} />
               ))}
             </div>
           ) : (
@@ -220,7 +222,21 @@ function ServiceItem({
   );
 }
 
-function DocumentCard({ document }: { document: GeneratedDocument }) {
+const SERVICE_STRIPE_MAP: Record<string, string> = {
+  'Voice-to-CV': 'voice-to-cv',
+  'CV Revamp': 'cv-revamp',
+  'Cover Letter': 'cover-letter',
+  'Interview Prep Guide': 'interview-pdf',
+};
+
+const SERVICE_PRICE_KEY_MAP: Record<string, keyof typeof PRICES> = {
+  'Voice-to-CV': 'VOICE_TO_CV',
+  'CV Revamp': 'CV_REVAMP',
+  'Cover Letter': 'COVER_LETTER',
+  'Interview Prep Guide': 'INTERVIEW_PDF',
+};
+
+function DocumentCard({ document, user }: { document: GeneratedDocument; user: any }) {
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'Just now';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -251,6 +267,31 @@ function DocumentCard({ document }: { document: GeneratedDocument }) {
     }
   };
 
+  const handleUnlock = async () => {
+    const serviceKey = SERVICE_STRIPE_MAP[document.service] || 'voice-to-cv';
+    const priceKey = SERVICE_PRICE_KEY_MAP[document.service] || 'VOICE_TO_CV';
+
+    try {
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceId: STRIPE_PRICE_IDS[priceKey],
+          userId: user.uid,
+          service: serviceKey,
+          metadata: { documentId: document.id, service: serviceKey },
+        }),
+      });
+      const data = await response.json();
+      if (data.url) window.location.href = data.url;
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert('Failed to initiate payment. Please try again.');
+    }
+  };
+
+  const isPaid = document.isPaid === true;
+
   return (
     <div className="glass-light rounded-xl p-6">
       {/* Header */}
@@ -261,40 +302,61 @@ function DocumentCard({ document }: { document: GeneratedDocument }) {
           </h3>
           <p className="text-cream/60 text-sm">{formatDate(document.createdAt)}</p>
         </div>
-        <span className="text-green-400 text-sm font-medium">✓ Ready</span>
+        {isPaid ? (
+          <span className="px-3 py-1 bg-green-400/20 text-green-400 rounded-full text-sm font-medium">
+            Paid
+          </span>
+        ) : (
+          <span className="px-3 py-1 bg-yellow-400/20 text-yellow-400 rounded-full text-sm font-medium">
+            Locked
+          </span>
+        )}
       </div>
 
       {/* Details */}
       <div className="space-y-2 mb-6">
-        <div className="flex items-center text-sm">
-          <span className="text-cream/50 w-24">Country:</span>
-          <span className="text-champagne">{document.country}</span>
-        </div>
-        <div className="flex items-center text-sm">
-          <span className="text-cream/50 w-24">Job Type:</span>
-          <span className="text-champagne">{document.jobType}</span>
-        </div>
+        {document.country && (
+          <div className="flex items-center text-sm">
+            <span className="text-cream/50 w-24">Country:</span>
+            <span className="text-champagne">{document.country}</span>
+          </div>
+        )}
+        {document.jobType && (
+          <div className="flex items-center text-sm">
+            <span className="text-cream/50 w-24">Job Type:</span>
+            <span className="text-champagne">{document.jobType}</span>
+          </div>
+        )}
         <div className="flex items-center text-sm">
           <span className="text-cream/50 w-24">Words:</span>
           <span className="text-champagne">{document.wordCount}</span>
         </div>
       </div>
 
-      {/* Download Buttons */}
-      <div className="space-y-3">
+      {/* Actions */}
+      {isPaid ? (
+        <div className="space-y-3">
+          <button
+            onClick={handleDownloadPDF}
+            className="w-full px-4 py-3 bg-gold hover:bg-gold-dark text-bgDarkest font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            Download PDF
+          </button>
+          <button
+            onClick={handleDownloadWord}
+            className="w-full px-4 py-2 border border-gold/30 hover:border-gold text-gold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+          >
+            Download Word
+          </button>
+        </div>
+      ) : (
         <button
-          onClick={handleDownloadPDF}
+          onClick={handleUnlock}
           className="w-full px-4 py-3 bg-gold hover:bg-gold-dark text-bgDarkest font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
         >
-          <span>📄</span> Download PDF
+          Unlock & Download — £{PRICES[SERVICE_PRICE_KEY_MAP[document.service] || 'VOICE_TO_CV']}
         </button>
-        <button
-          onClick={handleDownloadWord}
-          className="w-full px-4 py-2 border border-gold/30 hover:border-gold text-gold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
-        >
-          <span>📝</span> Download Word
-        </button>
-      </div>
+      )}
     </div>
   );
 }

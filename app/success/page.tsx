@@ -4,27 +4,26 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import Header from '@/components/Header';
 import { generatePDF, generateWord } from '@/lib/document-generators';
 
-interface GeneratedDocument {
+interface UnlockedDocument {
   id: string;
   cvContent: string;
-  country: string;
-  jobType: string;
   service: string;
-  createdAt: any;
+  userName: string;
   wordCount: number;
+  isPaid: boolean;
 }
 
 function SuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<any>(null);
-  const [latestDoc, setLatestDoc] = useState<GeneratedDocument | null>(null);
+  const [document, setDocument] = useState<UnlockedDocument | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const sessionId = searchParams.get('session_id');
 
@@ -33,24 +32,25 @@ function SuccessContent() {
       if (currentUser) {
         setUser(currentUser);
 
-        try {
-          const docsQuery = query(
-            collection(db, 'generated_cvs'),
-            where('userEmail', '==', currentUser.email),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-          );
-          const querySnapshot = await getDocs(docsQuery);
-          if (!querySnapshot.empty) {
-            const doc = querySnapshot.docs[0];
-            setLatestDoc({
-              id: doc.id,
-              service: 'Document',
-              ...doc.data(),
-            } as GeneratedDocument);
+        if (sessionId) {
+          // Fetch full content via unlock API
+          try {
+            const response = await fetch('/api/documents/unlock', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId }),
+            });
+            const data = await response.json();
+
+            if (data.success && data.document) {
+              setDocument(data.document);
+            } else {
+              setError(data.error || 'Could not retrieve your document. Please check your dashboard.');
+            }
+          } catch (err) {
+            console.error('Error unlocking document:', err);
+            setError('Failed to retrieve document. Please check your dashboard.');
           }
-        } catch (error) {
-          console.error('Error fetching document:', error);
         }
       } else {
         router.push('/login');
@@ -59,19 +59,19 @@ function SuccessContent() {
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, [router, sessionId]);
 
   const handleDownloadPDF = () => {
-    if (latestDoc) {
+    if (document) {
       const fileName = `${user?.displayName?.replace(/\s+/g, '_') || 'Document'}_BIBINI.pdf`;
-      generatePDF(latestDoc.cvContent, fileName);
+      generatePDF(document.cvContent, fileName);
     }
   };
 
   const handleDownloadWord = async () => {
-    if (latestDoc) {
+    if (document) {
       const fileName = `${user?.displayName?.replace(/\s+/g, '_') || 'Document'}_BIBINI.docx`;
-      await generateWord(latestDoc.cvContent, fileName);
+      await generateWord(document.cvContent, fileName);
     }
   };
 
@@ -80,7 +80,7 @@ function SuccessContent() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-gold/30 border-t-gold animate-spin"></div>
-          <p className="text-champagne">Loading...</p>
+          <p className="text-champagne">Verifying payment...</p>
         </div>
       </div>
     );
@@ -97,7 +97,7 @@ function SuccessContent() {
             <span className="text-5xl">✓</span>
           </div>
           <h1 className="font-serif text-5xl font-bold text-champagne mb-4">
-            {sessionId ? 'Payment Successful!' : 'Document Ready!'}
+            Payment Successful!
           </h1>
           <p className="text-xl text-cream/80 max-w-2xl mx-auto">
             Thank you for choosing BIBINI AI. Your document is ready to download.
@@ -109,41 +109,36 @@ function SuccessContent() {
           )}
         </div>
 
-        {latestDoc ? (
+        {error ? (
+          <div className="glass-light rounded-2xl p-12 text-center mb-8">
+            <p className="text-cream/70 mb-4">{error}</p>
+            <Link href="/dashboard">
+              <button className="btn-primary">Go to Dashboard</button>
+            </Link>
+          </div>
+        ) : document ? (
           <>
             <div className="glass-light rounded-2xl p-8 mb-8">
               <div className="flex items-start justify-between mb-6">
                 <div>
                   <h2 className="font-serif text-2xl font-bold text-champagne mb-2">
-                    Your {latestDoc.service || 'Document'} is Ready
+                    Your {document.service || 'Document'} is Ready
                   </h2>
                   <div className="flex gap-6 text-sm">
-                    {latestDoc.country && (
-                      <div>
-                        <span className="text-cream/50">Country:</span>{' '}
-                        <span className="text-champagne">{latestDoc.country}</span>
-                      </div>
-                    )}
-                    {latestDoc.jobType && (
-                      <div>
-                        <span className="text-cream/50">Job Type:</span>{' '}
-                        <span className="text-champagne">{latestDoc.jobType}</span>
-                      </div>
-                    )}
                     <div>
                       <span className="text-cream/50">Words:</span>{' '}
-                      <span className="text-champagne">{latestDoc.wordCount}</span>
+                      <span className="text-champagne">{document.wordCount}</span>
                     </div>
                   </div>
                 </div>
                 <span className="px-4 py-2 bg-green-400/20 text-green-400 rounded-full text-sm font-medium">
-                  Ready
+                  Paid
                 </span>
               </div>
 
               <div className="bg-bgDarkest rounded-lg p-6 mb-6 max-h-96 overflow-y-auto">
                 <div className="text-cream/90 text-sm whitespace-pre-wrap leading-relaxed">
-                  {latestDoc.cvContent.substring(0, 500)}...
+                  {document.cvContent}
                 </div>
               </div>
 
@@ -166,7 +161,7 @@ function SuccessContent() {
             {user?.email && (
               <div className="glass-light rounded-xl p-6 mb-8 text-center">
                 <p className="text-cream/80 mb-2">
-                  A copy has been sent to <span className="text-champagne font-semibold">{user.email}</span>
+                  A confirmation email has been sent to <span className="text-champagne font-semibold">{user.email}</span>
                 </p>
                 <p className="text-cream/60 text-sm">
                   You can also download from your dashboard anytime
@@ -177,7 +172,7 @@ function SuccessContent() {
         ) : (
           <div className="glass-light rounded-2xl p-12 text-center mb-8">
             <p className="text-cream/70 mb-4">
-              No documents found yet. Generate one from your dashboard.
+              No session ID found. Please check your dashboard for your documents.
             </p>
           </div>
         )}

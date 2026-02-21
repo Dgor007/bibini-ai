@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revampCV } from '@/lib/gemini';
 import { humanizeCV } from '@/lib/undetectable';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,10 +34,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Save to Firestore (full content stored server-side only)
+    let documentId = '';
+    try {
+      const cvDoc = await addDoc(collection(db, 'generated_cvs'), {
+        userName,
+        userEmail,
+        service: 'CV Revamp',
+        country: 'UK',
+        jobType: 'CV Revamp',
+        cvContent: revampedCV,
+        createdAt: serverTimestamp(),
+        wordCount: revampedCV.split(/\s+/).length,
+        isPaid: false,
+        paymentStatus: 'pending',
+        stripeSessionId: null,
+        paidAt: null,
+      });
+      documentId = cvDoc.id;
+      console.log('[Firestore] Revamped CV saved with ID:', cvDoc.id);
+    } catch (firestoreError) {
+      console.error('[Firestore] Error saving revamped CV:', firestoreError);
+    }
+
+    // Return preview only — full content unlocked after payment
     return NextResponse.json({
       success: true,
-      revampedCV,
-      message: 'CV revamped successfully',
+      documentId,
+      preview: revampedCV.substring(0, 200),
+      wordCount: revampedCV.split(/\s+/).length,
     });
   } catch (error: any) {
     console.error('Error revamping CV:', error);

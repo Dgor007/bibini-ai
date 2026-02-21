@@ -86,10 +86,11 @@ export async function POST(request: NextRequest) {
 
         const userId = session.client_reference_id;
         const service = session.metadata?.service || 'unknown';
+        const documentId = session.metadata?.documentId;
         const customerEmail = session.customer_details?.email;
         const amount = session.amount_total ? session.amount_total / 100 : 0;
 
-        console.log('Payment successful:', { userId, service, customerEmail, amount });
+        console.log('Payment successful:', { userId, service, documentId, customerEmail, amount });
 
         // Save purchase record to Firestore
         try {
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest) {
             userId: userId || null,
             userEmail: customerEmail,
             service,
+            documentId: documentId || null,
             serviceName: serviceNames[service] || service,
             amount,
             currency: session.currency,
@@ -108,6 +110,22 @@ export async function POST(request: NextRequest) {
           console.log('Purchase record saved to Firestore');
         } catch (firestoreError) {
           console.error('Error saving purchase record:', firestoreError);
+        }
+
+        // Unlock the generated document
+        if (documentId) {
+          try {
+            const docRef = adminDb.collection('generated_cvs').doc(documentId);
+            await docRef.update({
+              isPaid: true,
+              paymentStatus: 'paid',
+              stripeSessionId: session.id,
+              paidAt: new Date(),
+            });
+            console.log(`Document ${documentId} unlocked`);
+          } catch (unlockError) {
+            console.error('Error unlocking document:', unlockError);
+          }
         }
 
         // Send confirmation email

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateInterviewPrepGuide } from '@/lib/gemini';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { role, level, company, industry } = body;
+    const { role, level, company, industry, userName, userEmail } = body;
 
     if (!role || !level) {
       return NextResponse.json(
@@ -20,10 +22,35 @@ export async function POST(request: NextRequest) {
       industry,
     });
 
+    // Save to Firestore (full content stored server-side only)
+    let documentId = '';
+    try {
+      const doc = await addDoc(collection(db, 'generated_cvs'), {
+        userName: userName || 'User',
+        userEmail: userEmail || '',
+        service: 'Interview Prep Guide',
+        country: 'UK',
+        jobType: role,
+        cvContent: guide,
+        createdAt: serverTimestamp(),
+        wordCount: guide.split(/\s+/).length,
+        isPaid: false,
+        paymentStatus: 'pending',
+        stripeSessionId: null,
+        paidAt: null,
+      });
+      documentId = doc.id;
+      console.log('[Firestore] Interview guide saved with ID:', doc.id);
+    } catch (firestoreError) {
+      console.error('[Firestore] Error saving interview guide:', firestoreError);
+    }
+
+    // Return preview only — full content unlocked after payment
     return NextResponse.json({
       success: true,
-      guide,
-      message: 'Interview prep guide generated successfully',
+      documentId,
+      preview: guide.substring(0, 200),
+      wordCount: guide.split(/\s+/).length,
     });
   } catch (error: any) {
     console.error('Error generating interview prep guide:', error);
