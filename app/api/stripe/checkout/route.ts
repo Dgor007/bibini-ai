@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { verifyAuth } from '@/lib/auth-verify';
+import { rateLimit } from '@/lib/rate-limit';
 
-// TODO: Add your Stripe secret key to .env.local
-// Get it from: https://dashboard.stripe.com/apikeys
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-01-28.clover',
 });
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication
+    const { user: authUser, error: authError } = await verifyAuth(request);
+    if (authError) return authError;
+
+    // Rate limit: 10 checkout attempts per hour
+    const { success: withinLimit } = rateLimit(`checkout:${authUser!.uid}`, { maxRequests: 10, windowMs: 60 * 60 * 1000 });
+    if (!withinLimit) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const { priceId, userId, service, metadata } = await request.json();
 
     if (!priceId || !userId || !service) {
@@ -17,9 +27,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // TODO: Verify user is authenticated via Firebase Admin SDK
-    // For now, we'll proceed with the checkout session creation
 
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({

@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGeminiModel } from '@/lib/gemini';
+import { verifyAuth } from '@/lib/auth-verify';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const { user: authUser, error: authError } = await verifyAuth(request);
+    if (authError) return authError;
+
+    const { success: withinLimit } = rateLimit(`chat:${authUser!.uid}`, { maxRequests: 60, windowMs: 60 * 60 * 1000 });
+    if (!withinLimit) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { action } = body;
 

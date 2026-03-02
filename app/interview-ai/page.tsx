@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { authFetch } from '@/lib/api-client';
 import Button from '@/components/Button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -198,7 +199,7 @@ export default function InterviewAIPage() {
       const qNum = currentQ + 1;
       const totalQ = questions.length;
 
-      const res = await fetch('/api/ai/interview-chat', {
+      const res = await authFetch('/api/ai/interview-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -302,7 +303,7 @@ export default function InterviewAIPage() {
     await aiSay(`Great! I'll prepare some interview questions for a ${job.trim()} position. Give me a moment.`);
 
     try {
-      const res = await fetch('/api/ai/interview-chat', {
+      const res = await authFetch('/api/ai/interview-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

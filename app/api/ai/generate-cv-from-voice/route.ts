@@ -3,13 +3,21 @@ import { generateCVFromVoice } from '@/lib/gemini';
 import { humanizeCV } from '@/lib/undetectable';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { verifyAuth } from '@/lib/auth-verify';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Add authentication in production
-    // For now, allowing unauthenticated requests for testing
+    // Verify authentication
+    const { user: authUser, error: authError } = await verifyAuth(request);
+    if (authError) return authError;
 
-    // Get request body
+    // Rate limit: 5 generations per hour per user
+    const { success: withinLimit } = rateLimit(`gen-cv:${authUser!.uid}`, { maxRequests: 5, windowMs: 60 * 60 * 1000 });
+    if (!withinLimit) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { transcript, userName, userEmail, phone, location, country, jobType } = body;
 

@@ -2,9 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateInterviewPrepGuide } from '@/lib/gemini';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { verifyAuth } from '@/lib/auth-verify';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const { user: authUser, error: authError } = await verifyAuth(request);
+    if (authError) return authError;
+
+    const { success: withinLimit } = rateLimit(`interview:${authUser!.uid}`, { maxRequests: 5, windowMs: 60 * 60 * 1000 });
+    if (!withinLimit) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { role, level, company, industry, userName, userEmail } = body;
 

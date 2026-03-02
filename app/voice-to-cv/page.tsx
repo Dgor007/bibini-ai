@@ -6,6 +6,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { generatePDF, generateWord } from '@/lib/document-generators';
 import { PRICES, STRIPE_PRICE_IDS } from '@/lib/stripe';
+import { authFetch } from '@/lib/api-client';
 import Button from '@/components/Button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -123,7 +124,7 @@ export default function VoiceToCVPage() {
         return;
       }
 
-      const response = await fetch('/api/ai/generate-cv-from-voice', {
+      const response = await authFetch('/api/ai/generate-cv-from-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -164,7 +165,7 @@ export default function VoiceToCVPage() {
   const handleUnlockPayment = async () => {
     if (!documentId) return;
     try {
-      const response = await fetch('/api/stripe/checkout', {
+      const response = await authFetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

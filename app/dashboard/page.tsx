@@ -9,6 +9,7 @@ import { auth, db } from '@/lib/firebase';
 import Header from '@/components/Header';
 import { generatePDF, generateWord } from '@/lib/document-generators';
 import { PRICES, STRIPE_PRICE_IDS } from '@/lib/stripe';
+import { authFetch } from '@/lib/api-client';
 
 interface GeneratedDocument {
   id: string;
@@ -272,7 +273,7 @@ function DocumentCard({ document, user }: { document: GeneratedDocument; user: a
     const priceKey = SERVICE_PRICE_KEY_MAP[document.service] || 'VOICE_TO_CV';
 
     try {
-      const response = await fetch('/api/stripe/checkout', {
+      const response = await authFetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
