@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { authFetch } from '@/lib/api-client';
 import Header from '@/components/Header';
 import { generatePDF, generateWord } from '@/lib/document-generators';
 
@@ -35,7 +36,7 @@ function SuccessContent() {
         if (sessionId) {
           // Fetch full content via unlock API
           try {
-            const response = await fetch('/api/documents/unlock', {
+            const response = await authFetch('/api/documents/unlock', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ sessionId }),

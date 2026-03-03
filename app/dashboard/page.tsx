@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import Header from '@/components/Header';
 import { generatePDF, generateWord } from '@/lib/document-generators';
 import { PRICES, STRIPE_PRICE_IDS } from '@/lib/stripe';
@@ -36,19 +35,16 @@ export default function DashboardPage() {
       if (currentUser) {
         setUser(currentUser);
 
-        // Fetch user's generated documents from Firestore
+        // Fetch user's documents via server API (strips cvContent from unpaid docs)
         try {
-          const docsQuery = query(
-            collection(db, 'generated_cvs'),
-            where('userEmail', '==', currentUser.email),
-            orderBy('createdAt', 'desc')
-          );
-          const querySnapshot = await getDocs(docsQuery);
-          const userDocs = querySnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as GeneratedDocument[];
-          setDocuments(userDocs);
+          const token = await currentUser.getIdToken();
+          const response = await fetch('/api/documents/list', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          const data = await response.json();
+          if (data.success && data.documents) {
+            setDocuments(data.documents);
+          }
         } catch (error) {
           console.error('Error fetching documents:', error);
         }

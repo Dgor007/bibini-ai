@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { PRICES, STRIPE_PRICE_IDS } from '@/lib/stripe';
+import { authFetch } from '@/lib/api-client';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -11,43 +13,48 @@ const services = [
   {
     icon: '🎤',
     title: 'Voice-to-CV',
-    price: '£39',
+    price: `£${PRICES.VOICE_TO_CV}`,
     href: '/voice-to-cv',
     description: 'Transform your career story into a world-class CV',
   },
   {
     icon: '✨',
     title: 'CV Revamp',
-    price: '£29',
+    price: `£${PRICES.CV_REVAMP}`,
     href: '/cv-revamp',
     description: 'Elevate your existing CV to international standards',
   },
   {
     icon: '💬',
     title: 'AI Interview Practice',
-    price: '£29',
+    price: `£${PRICES.INTERVIEW_AI}`,
     href: '/interview-ai',
     description: 'Unlimited voice-based mock interviews with AI feedback',
   },
   {
     icon: '📄',
     title: 'Interview Prep Guide',
-    price: '£17.99',
+    price: `£${PRICES.INTERVIEW_PDF}`,
     href: '/interview-pdf',
     description: '50+ questions, model answers & preparation checklist',
   },
   {
     icon: '✉️',
     title: 'Cover Letter Generator',
-    price: '£19',
+    price: `£${PRICES.COVER_LETTER}`,
     href: '/cover-letter',
     description: 'Personalized cover letters that get you noticed',
   },
 ];
 
+const individualTotal = Object.entries(PRICES)
+  .filter(([key]) => key !== 'BUNDLE')
+  .reduce((sum, [, price]) => sum + price, 0);
+
 export default function BundlePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [purchasing, setPurchasing] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -55,6 +62,40 @@ export default function BundlePage() {
     });
     return () => unsubscribe();
   }, []);
+
+  const handleBuyBundle = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    setPurchasing(true);
+    try {
+      const response = await authFetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceId: STRIPE_PRICE_IDS.BUNDLE,
+          userId: user.uid,
+          service: 'bundle',
+          metadata: { service: 'bundle' },
+        }),
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || 'Failed to start checkout. Please try again.');
+      }
+    } catch (error) {
+      console.error('Bundle purchase error:', error);
+      alert('Failed to start checkout. Please try again.');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  const savings = (individualTotal - PRICES.BUNDLE).toFixed(2);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -74,10 +115,26 @@ export default function BundlePage() {
             in one powerful bundle.
           </p>
           <div className="inline-block glass-light rounded-full px-6 py-2">
-            <span className="text-cream/60 line-through text-lg mr-3">£133.99</span>
-            <span className="text-gold font-serif text-3xl font-bold">£99</span>
+            <span className="text-cream/60 line-through text-lg mr-3">£{individualTotal.toFixed(2)}</span>
+            <span className="text-gold font-serif text-3xl font-bold">£{PRICES.BUNDLE}</span>
           </div>
-          <p className="text-green-400 text-sm mt-2 font-medium">Save £34.99</p>
+          <p className="text-green-400 text-sm mt-2 font-medium">Save £{savings}</p>
+        </div>
+
+        {/* Buy Button - Top */}
+        <div className="text-center mb-12">
+          <button
+            onClick={handleBuyBundle}
+            disabled={purchasing}
+            className="px-10 py-5 bg-gold hover:bg-gold-dark text-bgDarkest font-bold rounded-lg transition-all transform hover:scale-105 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {purchasing ? 'Processing...' : user ? `Get the Bundle — £${PRICES.BUNDLE}` : 'Sign In to Purchase'}
+          </button>
+          {!user && (
+            <p className="text-cream/60 text-sm mt-3">
+              You'll need to sign in before purchasing
+            </p>
+          )}
         </div>
 
         {/* What's Included */}
@@ -111,9 +168,9 @@ export default function BundlePage() {
               <div className="w-12 h-12 rounded-full bg-gold/20 flex items-center justify-center mb-4">
                 <span className="text-gold font-bold">1</span>
               </div>
-              <h3 className="font-semibold text-champagne mb-2">Get Access</h3>
+              <h3 className="font-semibold text-champagne mb-2">Purchase</h3>
               <p className="text-cream/70 text-sm">
-                Sign in to unlock all 5 services from your dashboard.
+                One payment unlocks all 5 premium services at a discounted rate.
               </p>
             </div>
             <div>
@@ -140,40 +197,39 @@ export default function BundlePage() {
         {/* Service Links */}
         <section className="mb-12">
           <h2 className="font-serif text-2xl font-bold text-champagne mb-6 text-center">
-            Start Using Your Services
+            Explore the Services
           </h2>
-          {!user ? (
-            <div className="text-center">
-              <p className="text-cream/70 mb-6">Sign in to access all bundle services.</p>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {services.map((service) => (
               <button
-                onClick={() => router.push('/login')}
-                className="px-8 py-4 bg-gold hover:bg-gold-dark text-bgDarkest font-bold rounded-lg transition-colors text-lg"
+                key={service.title}
+                onClick={() => router.push(service.href)}
+                className="relative z-0 rounded-2xl p-6 border border-transparent hover:border-gold transition-all text-left"
+                style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(10px)' }}
               >
-                Sign In to Get Started
+                <span className="text-2xl mb-3 block">{service.icon}</span>
+                <h3 className="font-serif text-lg font-bold text-champagne mb-1">
+                  {service.title}
+                </h3>
+                <p className="text-cream/60 text-sm">{service.description}</p>
+                <span className="text-gold text-sm mt-3 block font-medium">
+                  Learn more &rarr;
+                </span>
               </button>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {services.map((service) => (
-                <button
-                  key={service.title}
-                  onClick={() => router.push(service.href)}
-                  className="relative z-0 rounded-2xl p-6 border border-transparent hover:border-gold transition-all text-left"
-                  style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(10px)' }}
-                >
-                  <span className="text-2xl mb-3 block">{service.icon}</span>
-                  <h3 className="font-serif text-lg font-bold text-champagne mb-1">
-                    {service.title}
-                  </h3>
-                  <p className="text-cream/60 text-sm">{service.description}</p>
-                  <span className="text-gold text-sm mt-3 block font-medium">
-                    Use now &rarr;
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+            ))}
+          </div>
         </section>
+
+        {/* Buy Button - Bottom */}
+        <div className="text-center">
+          <button
+            onClick={handleBuyBundle}
+            disabled={purchasing}
+            className="px-10 py-5 bg-gold hover:bg-gold-dark text-bgDarkest font-bold rounded-lg transition-all transform hover:scale-105 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {purchasing ? 'Processing...' : `Get the Bundle — £${PRICES.BUNDLE}`}
+          </button>
+        </div>
       </div>
 
       <Footer />
