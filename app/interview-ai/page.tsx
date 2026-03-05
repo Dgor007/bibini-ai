@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { authFetch } from '@/lib/api-client';
+import { PRICES, STRIPE_PRICE_IDS } from '@/lib/stripe';
 import Button from '@/components/Button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -62,8 +63,11 @@ function speak(text: string, onEnd?: () => void) {
 export default function InterviewAIPage() {
   const router = useRouter();
 
-  // Auth
+  // Auth & access
   const [user, setUser] = useState<any>(null);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [checkingAccess, setCheckingAccess] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
 
   // Landing page selections
   const [selectedRole, setSelectedRole] = useState('');
@@ -92,9 +96,27 @@ export default function InterviewAIPage() {
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const finalTranscriptRef = useRef('');
 
-  // ─── Auth listener ─────────────────────────────────────────────────
+  // ─── Auth listener + access check ─────────────────────────────────
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      setUser(u);
+      if (u) {
+        setCheckingAccess(true);
+        try {
+          const res = await authFetch('/api/documents/check-access', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service: 'interview-ai' }),
+          });
+          const data = await res.json();
+          setHasAccess(data.hasAccess === true);
+        } catch {
+          setHasAccess(false);
+        } finally {
+          setCheckingAccess(false);
+        }
+      }
+    });
     return () => unsub();
   }, []);
 
@@ -272,10 +294,42 @@ export default function InterviewAIPage() {
     }
   }, [userTypedAnswer, submitAnswer]);
 
+  // ─── Purchase handler ─────────────────────────────────────────────
+  const handlePurchase = useCallback(async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    setPurchasing(true);
+    try {
+      const response = await authFetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          priceId: STRIPE_PRICE_IDS.INTERVIEW_AI,
+          userId: user.uid,
+          service: 'interview-ai',
+          metadata: { service: 'interview-ai' },
+        }),
+      });
+      const data = await response.json();
+      if (data.url) window.location.href = data.url;
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert('Failed to initiate payment. Please try again.');
+    } finally {
+      setPurchasing(false);
+    }
+  }, [user, router]);
+
   // ─── Start practice session ────────────────────────────────────────
   const handleStartPractice = useCallback(async () => {
     if (!user) {
       router.push('/login');
+      return;
+    }
+    if (!hasAccess) {
+      handlePurchase();
       return;
     }
     if (!selectedRole || !selectedLevel) {
@@ -284,7 +338,7 @@ export default function InterviewAIPage() {
     }
     setPhase('setup');
     await aiSay("Hello! Welcome to your interview practice session. What's your name?");
-  }, [user, router, selectedRole, selectedLevel, aiSay]);
+  }, [user, router, selectedRole, selectedLevel, aiSay, hasAccess, handlePurchase]);
 
   // ─── Setup phase: collect name ─────────────────────────────────────
   const handleNameSubmit = useCallback(async (name: string) => {
@@ -486,16 +540,35 @@ export default function InterviewAIPage() {
           </section>
 
           <div className="text-center">
-            <Button
-              onClick={handleStartPractice}
-              disabled={!selectedRole || !selectedLevel}
-            >
-              {user ? 'Start Interview Practice' : 'Sign in to Start'}
-            </Button>
-            {!user && (
-              <p className="text-cream/60 text-sm mt-4">
-                You'll need to sign in before starting
-              </p>
+            {checkingAccess ? (
+              <p className="text-cream/60 text-sm">Checking access...</p>
+            ) : user && hasAccess === false ? (
+              <>
+                <button
+                  onClick={handlePurchase}
+                  disabled={purchasing}
+                  className="px-10 py-5 bg-gold hover:bg-gold-dark text-bgDarkest font-bold rounded-lg transition-all transform hover:scale-105 text-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {purchasing ? 'Processing...' : `Unlock Interview Practice — £${PRICES.INTERVIEW_AI}`}
+                </button>
+                <p className="text-cream/60 text-sm mt-4">
+                  One-time payment for unlimited practice sessions
+                </p>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={handleStartPractice}
+                  disabled={!selectedRole || !selectedLevel}
+                >
+                  {user ? 'Start Interview Practice' : 'Sign in to Start'}
+                </Button>
+                {!user && (
+                  <p className="text-cream/60 text-sm mt-4">
+                    You'll need to sign in before starting
+                  </p>
+                )}
+              </>
             )}
             {!micSupported && (
               <p className="text-cream/60 text-sm mt-4">

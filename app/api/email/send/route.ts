@@ -1,22 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
+import { verifyAuth } from '@/lib/auth-verify';
+import { rateLimit } from '@/lib/rate-limit';
 
-// TODO: Add your Resend API key to .env.local
-// Get it from: https://resend.com/api-keys
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: NextRequest) {
   try {
-    const { to, subject, html, attachments } = await request.json();
+    // Verify authentication
+    const { user: authUser, error: authError } = await verifyAuth(request);
+    if (authError) return authError;
 
-    if (!to || !subject || !html) {
+    // Rate limit: 5 emails per hour per user
+    const { success: withinLimit } = rateLimit(`email:${authUser!.uid}`, { maxRequests: 5, windowMs: 60 * 60 * 1000 });
+    if (!withinLimit) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
+    const { subject, html } = await request.json();
+
+    if (!subject || !html) {
       return NextResponse.json(
-        { error: 'Missing required fields (to, subject, html)' },
+        { error: 'Missing required fields (subject, html)' },
         { status: 400 }
       );
     }
 
-    // TODO: Replace with your verified domain email
+    // Only allow sending to the authenticated user's own email
+    const to = authUser!.email;
+    if (!to) {
+      return NextResponse.json(
+        { error: 'No email address associated with your account' },
+        { status: 400 }
+      );
+    }
+
     const from = process.env.RESEND_FROM_EMAIL || 'BIBINI <onboarding@resend.dev>';
 
     const data = await resend.emails.send({
@@ -24,7 +42,6 @@ export async function POST(request: NextRequest) {
       to,
       subject,
       html,
-      attachments,
     });
 
     return NextResponse.json({ success: true, data });
@@ -36,40 +53,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-// Example usage from other parts of the app:
-//
-// Send purchase confirmation:
-// await fetch('/api/email/send', {
-//   method: 'POST',
-//   headers: { 'Content-Type': 'application/json' },
-//   body: JSON.stringify({
-//     to: 'user@example.com',
-//     subject: 'Your BIBINI Purchase Confirmation',
-//     html: `
-//       <h1>Thank you for your purchase!</h1>
-//       <p>Your ${service} order is being processed.</p>
-//       <p>You'll receive your delivery within 24-48 hours.</p>
-//     `,
-//   }),
-// });
-//
-// Send CV delivery:
-// await fetch('/api/email/send', {
-//   method: 'POST',
-//   headers: { 'Content-Type': 'application/json' },
-//   body: JSON.stringify({
-//     to: 'user@example.com',
-//     subject: 'Your Professional CV is Ready!',
-//     html: `
-//       <h1>Your CV is ready!</h1>
-//       <p>Please find your professional CV attached.</p>
-//     `,
-//     attachments: [
-//       {
-//         filename: 'cv.pdf',
-//         content: base64Content,
-//       },
-//     ],
-//   }),
-// });
