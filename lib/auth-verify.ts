@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from './firebase-admin';
-import { getAuth } from 'firebase-admin/auth';
-import { getApps } from 'firebase-admin/app';
+import { adminAuth } from './firebase-admin';
 
 /**
  * Verify Firebase ID token from Authorization header.
@@ -26,9 +24,7 @@ export async function verifyAuth(request: NextRequest): Promise<
   const idToken = authHeader.split('Bearer ')[1];
 
   try {
-    const app = getApps()[0];
-    const auth = getAuth(app);
-    const decoded = await auth.verifyIdToken(idToken);
+    const decoded = await adminAuth.verifyIdToken(idToken);
 
     return {
       user: {
