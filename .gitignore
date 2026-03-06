@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# project docs that may contain secrets
+PROJECT_STATUS.md
+QUICK_RESUME.md
+SETUP_CHECKLIST.md
+
+# test scripts
+test-*.mjs
+test-*.js
